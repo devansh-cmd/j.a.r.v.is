@@ -1,0 +1,25 @@
+#!/bin/sh
+# Jarvis pre-commit secret guard.
+# Blocks any commit whose staged changes look like an API key, cloud
+# credential, private key, or a .env file. Bypass (rarely) with --no-verify.
+#
+# Activate after cloning:  git config core.hooksPath scripts/git-hooks
+
+secrets=$(git diff --cached -U0 -- . ':(exclude).env.example' 2>/dev/null \
+  | grep -nE 'sk-ant-api[0-9]|sk-[A-Za-z0-9]{32,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20}|AIza[0-9A-Za-z_-]{30}|xox[baprs]-[0-9A-Za-z-]{10,}|-----BEGIN (RSA|OPENSSH|EC|DSA|PRIVATE) KEY')
+
+if [ -n "$secrets" ]; then
+  echo "x pre-commit: possible secret in staged changes:"
+  echo "$secrets"
+  echo ""
+  echo "  -> Move it to an environment variable (.env, which is gitignored)."
+  echo "     False positive? Re-run with: git commit --no-verify"
+  exit 1
+fi
+
+if git diff --cached --name-only | grep -qE '(^|/)\.env$'; then
+  echo "x pre-commit: refusing to commit a .env file. Keep your key local."
+  exit 1
+fi
+
+exit 0
