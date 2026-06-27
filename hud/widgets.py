@@ -76,6 +76,95 @@ _STATE_RATES = {
 }
 
 
+class HudBackground(QWidget):
+    """Painted backdrop — deep radial wash + faint tech grid that fades at the edges.
+
+    Sits behind the content (which is transparent / translucent), so the grid shows
+    through the gaps and through the panels.
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.height()
+
+        # Base radial wash
+        base = QRadialGradient(w / 2, h / 2, max(w, h) * 0.8)
+        base.setColorAt(0.0, QColor(3, 22, 31))
+        base.setColorAt(1.0, QColor(1, 7, 12))
+        p.fillRect(self.rect(), QBrush(base))
+
+        # Tech grid
+        pen = QPen(QColor(0, 212, 255, 16))
+        pen.setWidth(1)
+        p.setPen(pen)
+        step = 42
+        for x in range(0, w, step):
+            p.drawLine(x, 0, x, h)
+        for y in range(0, h, step):
+            p.drawLine(0, y, w, y)
+
+        # Vignette to fade the grid toward the edges
+        vig = QRadialGradient(w / 2, h / 2, max(w, h) * 0.62)
+        vig.setColorAt(0.0, QColor(1, 7, 12, 0))
+        vig.setColorAt(0.65, QColor(1, 7, 12, 0))
+        vig.setColorAt(1.0, QColor(1, 7, 12, 210))
+        p.fillRect(self.rect(), QBrush(vig))
+        p.end()
+
+
+class HudOverlay(QWidget):
+    """Transparent top layer: a scan line sweeping down + corner brackets.
+
+    Drawn above everything (panels, bars) so the scan line passes over the whole
+    HUD like the concept. Transparent to mouse so it never intercepts clicks.
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._scan = -0.05
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(33)
+
+    def _tick(self) -> None:
+        self._scan += 0.0018
+        if self._scan > 1.1:
+            self._scan = -0.08
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.height()
+
+        # Scan line
+        y = self._scan * h
+        if 0 <= y <= h:
+            grad = QLinearGradient(0, y, w, y)
+            grad.setColorAt(0.0, QColor(0, 212, 255, 0))
+            grad.setColorAt(0.5, QColor(95, 239, 255, 90))
+            grad.setColorAt(1.0, QColor(0, 212, 255, 0))
+            pen = QPen(QBrush(grad), 2)
+            p.setPen(pen)
+            p.drawLine(0, int(y), w, int(y))
+
+        # Corner brackets
+        pen = QPen(QColor(0, 212, 255, 190))
+        pen.setWidth(2)
+        p.setPen(pen)
+        seg, m = 22, 9
+        p.drawLine(m, m, m + seg, m); p.drawLine(m, m, m, m + seg)               # TL
+        p.drawLine(w - m - seg, m, w - m, m); p.drawLine(w - m, m, w - m, m + seg)  # TR
+        p.drawLine(m, h - m, m + seg, h - m); p.drawLine(m, h - m, m, h - m - seg)  # BL
+        p.drawLine(w - m - seg, h - m, w - m, h - m); p.drawLine(w - m, h - m, w - m, h - m - seg)  # BR
+        p.end()
+
+
 class ArcReactor(QWidget):
     """Central animated reactor. Concentric rings, pulsing core, waveform ring.
 
@@ -151,6 +240,37 @@ class ArcReactor(QWidget):
         p.setPen(pen)
         p.setBrush(Qt.NoBrush)
         p.drawEllipse(QPointF(cx, cy), r_outer, r_outer)
+
+        # Fine tick ring — 60 ticks, every 5th brighter, slow drift
+        p.save()
+        p.translate(cx, cy)
+        p.rotate(self._rotation * 0.25)
+        for i in range(60):
+            ang = (i / 60) * 2 * math.pi
+            major = i % 5 == 0
+            r1 = r_outer * 0.92
+            r2 = r_outer * (0.80 if major else 0.86)
+            tick_pen = QPen(
+                QColor(color.red(), color.green(), color.blue(), 210 if major else 90)
+            )
+            tick_pen.setWidth(2 if major else 1)
+            p.setPen(tick_pen)
+            p.drawLine(
+                QPointF(r1 * math.cos(ang), r1 * math.sin(ang)),
+                QPointF(r2 * math.cos(ang), r2 * math.sin(ang)),
+            )
+        p.restore()
+
+        # Crosshair stubs at N / E / S / W
+        ch_pen = QPen(QColor(color.red(), color.green(), color.blue(), 70))
+        ch_pen.setWidth(1)
+        p.setPen(ch_pen)
+        gap = r_ring * 1.18
+        reach = r_outer * 0.96
+        p.drawLine(QPointF(cx - reach, cy), QPointF(cx - gap, cy))
+        p.drawLine(QPointF(cx + gap, cy), QPointF(cx + reach, cy))
+        p.drawLine(QPointF(cx, cy - reach), QPointF(cx, cy - gap))
+        p.drawLine(QPointF(cx, cy + gap), QPointF(cx, cy + reach))
 
         # Waveform ring (bars radiating from center)
         bars = len(self._wave)

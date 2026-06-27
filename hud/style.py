@@ -37,8 +37,9 @@ QMainWindow, #rootBg {{
 }}
 
 #panel {{
-    background-color: {BG_PANEL};
-    border: 1px solid {BORDER};
+    background-color: rgba(6, 22, 32, 160);
+    border: 1px solid {BORDER_DIM};
+    border-top: 2px solid {BORDER_BRIGHT};
     border-radius: 4px;
 }}
 

@@ -8,8 +8,9 @@ from datetime import datetime
 
 import psutil
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QGraphicsDropShadowEffect,
     QGridLayout,
     QHBoxLayout,
     QLineEdit,
@@ -39,6 +40,8 @@ from hud.widgets import (
     STATE_SPEAKING,
     STATE_ERROR,
     ArcReactor,
+    HudBackground,
+    HudOverlay,
     JobPrepView,
     Panel,
     StatusBar,
@@ -49,6 +52,15 @@ from hud.worker import JarvisWorker
 
 def _esc(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _glow(widget, radius: int = 20, alpha: int = 150) -> None:
+    """Apply a soft cyan outer glow to a widget."""
+    eff = QGraphicsDropShadowEffect(widget)
+    eff.setBlurRadius(radius)
+    eff.setColor(QColor(0, 212, 255, alpha))
+    eff.setOffset(0, 0)
+    widget.setGraphicsEffect(eff)
 
 
 def _bar(pct: int, fill: str, track: str = "rgba(0,212,255,28)") -> str:
@@ -82,9 +94,10 @@ class JarvisHUD(QMainWindow):
         self._tool_count = 0
         prep.ensure_seeded()
 
-        root = QWidget()
-        root.setObjectName("rootBg")
+        root = HudBackground()
+        root.setObjectName("hudBg")
         self.setCentralWidget(root)
+        self._root = root
         outer = QVBoxLayout(root)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
@@ -138,6 +151,13 @@ class JarvisHUD(QMainWindow):
         self.jobprep = JobPrepView()
         self.views.addWidget(self.jobprep)
 
+        # Cyan glow halo on every panel
+        for panel in (
+            self.transcript, self.actions, self.response, self.systems,
+            self.todo, self.jobprep.dsa, self.jobprep.prep,
+        ):
+            _glow(panel)
+
         # Text input fallback (always available)
         input_bar = QWidget()
         input_bar.setObjectName("inputBar")
@@ -181,6 +201,11 @@ class JarvisHUD(QMainWindow):
             "Online and ready.\n\nSpeak into your microphone, or type below.",
             color=TEXT,
         )
+
+        # Scan-line + corner-bracket overlay, above everything
+        self._overlay = HudOverlay(root)
+        self._overlay.setGeometry(root.rect())
+        self._overlay.raise_()
 
     # ── Signal handlers ─────────────────────────────────────────────────────
 
@@ -398,6 +423,13 @@ class JarvisHUD(QMainWindow):
         self.jobprep.prep.body.setHtml(html)
 
     # ── Cleanup ─────────────────────────────────────────────────────────────
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        overlay = getattr(self, "_overlay", None)
+        if overlay is not None:
+            overlay.setGeometry(self._root.rect())
+            overlay.raise_()
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self.worker.stop()
