@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -13,7 +14,15 @@ import pyautogui
 import requests
 from bs4 import BeautifulSoup
 
-from config import DOWNLOADS_DIR, SHELL_MAX_OUTPUT_CHARS, SHELL_TIMEOUT_SECONDS
+from config import (
+    DOWNLOADS_DIR,
+    IS_MAC,
+    IS_WINDOWS,
+    ROOT,
+    SHELL_MAX_OUTPUT_CHARS,
+    SHELL_NAME,
+    SHELL_TIMEOUT_SECONDS,
+)
 from core import dsa, memory, prep, tasks
 
 pyautogui.FAILSAFE = True
@@ -23,23 +32,43 @@ TOOLS: list[dict] = [
     {
         "name": "shell",
         "description": (
-            "Run a PowerShell command on the user's Windows 11 machine and return its stdout/stderr. "
-            "Use for filesystem ops, launching apps, checking system state, git, running scripts. "
-            f"Times out after {SHELL_TIMEOUT_SECONDS}s. Output truncated to {SHELL_MAX_OUTPUT_CHARS} chars."
+            f"Run a {SHELL_NAME} command on the user's machine and return its stdout/stderr. "
+            "Use for filesystem ops, checking system state, git, running scripts, CLI tools. "
+            f"Times out after {SHELL_TIMEOUT_SECONDS}s. Output truncated to {SHELL_MAX_OUTPUT_CHARS} chars. "
+            "Confirm with the user before destructive commands (rm, overwrite, sudo, etc.)."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "command": {
                     "type": "string",
-                    "description": "The PowerShell command to execute.",
+                    "description": f"The {SHELL_NAME} command to execute.",
                 },
                 "cwd": {
                     "type": "string",
-                    "description": "Working directory (optional, defaults to C:\\Jarvis).",
+                    "description": "Working directory (optional).",
                 },
             },
             "required": ["command"],
+        },
+    },
+    {
+        "name": "applescript",
+        "description": (
+            "macOS only. Run an AppleScript via osascript — the best way to control Mac apps: "
+            "Music, Safari, Mail, Calendar, Reminders, Notes, Finder, System Events (UI scripting), "
+            "set volume/brightness, etc. Prefer this over `shell` for anything app-related on a Mac. "
+            "Confirm before actions that send, delete, or change settings."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "script": {
+                    "type": "string",
+                    "description": 'AppleScript source, e.g. \'tell application "Music" to play\'.',
+                },
+            },
+            "required": ["script"],
         },
     },
     {
@@ -401,11 +430,20 @@ def _truncate(s: str, n: int) -> str:
     return s[:n] + f"\n…[truncated, {len(s) - n} more chars]"
 
 
+def _shell_argv(command: str) -> list[str]:
+    """Build the argv to run a command in the platform's shell."""
+    if IS_WINDOWS:
+        return ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command]
+    # macOS / Linux — login shell so Homebrew/user PATH is available.
+    shell = shutil.which("zsh") or shutil.which("bash") or "/bin/sh"
+    return [shell, "-lc", command]
+
+
 def t_shell(command: str, cwd: str | None = None) -> str:
-    workdir = cwd or str(Path(__file__).resolve().parent.parent)
+    workdir = cwd or str(ROOT)
     try:
         result = subprocess.run(
-            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
+            _shell_argv(command),
             capture_output=True,
             text=True,
             timeout=SHELL_TIMEOUT_SECONDS,
@@ -413,6 +451,8 @@ def t_shell(command: str, cwd: str | None = None) -> str:
         )
     except subprocess.TimeoutExpired:
         return f"[timeout after {SHELL_TIMEOUT_SECONDS}s]"
+    except FileNotFoundError as e:
+        return f"[shell not found: {e}]"
     parts = []
     if result.stdout:
         parts.append("STDOUT:\n" + result.stdout.rstrip())
@@ -669,15 +709,39 @@ def t_mouse_click(x: int, y: int, button: str = "left", double: bool = False) ->
 
 
 def t_open_app(name: str) -> str:
+    if IS_WINDOWS:
+        argv = ["powershell.exe", "-NoProfile", "-Command", f"Start-Process '{name}'"]
+    elif IS_MAC:
+        argv = ["open", "-a", name]
+    else:
+        argv = ["xdg-open", name]
     try:
-        subprocess.Popen(
-            ["powershell.exe", "-NoProfile", "-Command", f"Start-Process '{name}'"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return f"Launched: {name}"
     except Exception as e:
         return f"Could not launch {name}: {e}"
+
+
+def t_applescript(script: str) -> str:
+    if not IS_MAC:
+        return "applescript is only available on macOS."
+    try:
+        result = subprocess.run(
+            ["osascript", "-"],
+            input=script,
+            capture_output=True,
+            text=True,
+            timeout=SHELL_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        return f"[timeout after {SHELL_TIMEOUT_SECONDS}s]"
+    except FileNotFoundError:
+        return "[osascript not found — are you on macOS?]"
+    out = (result.stdout or "").strip()
+    err = (result.stderr or "").strip()
+    if result.returncode != 0:
+        return f"AppleScript error: {err or out or '(no output)'}"
+    return out or "(ok)"
 
 
 def t_memory_save(content: str, category: str = "general", tags: list[str] | None = None) -> str:
@@ -843,6 +907,7 @@ DISPATCH: dict[str, Any] = {
     "key_press": t_key_press,
     "mouse_click": t_mouse_click,
     "open_app": t_open_app,
+    "applescript": t_applescript,
     "memory_save": t_memory_save,
     "memory_search": t_memory_search,
     "memory_list_recent": t_memory_list_recent,
