@@ -1,0 +1,45 @@
+# ─── Secrets ────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Python ─────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ─── Virtual environments ───────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ─── Jarvis runtime / personal data ─────────────────────────
+# Per-user state the app generates at runtime — not source.
+# (prep.json re-seeds with the default curriculum on first run.)
+memory_store/
+logs/
+diary/
+downloads/
+
+# ─── Scratch / temp ─────────────────────────────────────────
+*.tmp
+*.corrupt.json
+_hud_preview*.png
+_preview_*.png
+_view_*.png
+
+# ─── OS / editor ────────────────────────────────────────────
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+*.swp
