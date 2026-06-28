@@ -145,6 +145,26 @@ QPushButton#navBtn:checked {{
     background-color: {a28};
 }}
 
+QPushButton#modeBtn {{
+    color: {TEXT_DIM};
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 4px 11px;
+    margin: 0 2px;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}}
+QPushButton#modeBtn:hover {{
+    color: {TEXT};
+    background-color: {a16};
+}}
+QPushButton#modeBtn:checked {{
+    border: 1px solid {border};
+    background-color: {a22};
+}}
+
 #viewBanner {{
     color: {accent};
     font-size: 12px;

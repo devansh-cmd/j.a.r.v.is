@@ -47,6 +47,7 @@ from hud.style import (
     TEXT_BRIGHT,
     TEXT_DIM,
 )
+from hud.theme import MODES
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -74,6 +75,25 @@ _STATE_RATES = {
     STATE_SPEAKING: 1.8,
     STATE_ERROR: 1.0,
 }
+
+
+def _lerp(c1: QColor, c2: QColor, t: float) -> QColor:
+    return QColor(
+        int(c1.red() + (c2.red() - c1.red()) * t),
+        int(c1.green() + (c2.green() - c1.green()) * t),
+        int(c1.blue() + (c2.blue() - c1.blue()) * t),
+    )
+
+
+def _warm(base: QColor, intensity: float) -> QColor:
+    """Shift a colour toward violet (mid intensity) then yellow (high)."""
+    if intensity <= 0.01:
+        return QColor(base)
+    violet = QColor(165, 95, 255)
+    yellow = QColor(255, 215, 80)
+    if intensity <= 0.5:
+        return _lerp(base, violet, intensity / 0.5)
+    return _lerp(violet, yellow, (intensity - 0.5) / 0.5)
 
 
 class HudBackground(QWidget):
@@ -189,7 +209,13 @@ class ArcReactor(QWidget):
         self._state = STATE_IDLE
         self._accent = QColor(0, 212, 255)
         self._phase = 0.0
+        self._elapsed = 0.0          # seconds, for the 1.5s breathing cadence
         self._rotation = 0.0
+        self._intensity = 0.0        # 0..1 task intensity → hue warmth + brightness
+        self._puff = 0.0             # 0..1 one-shot "puff" on command
+        self._ripples: list[float] = []      # expanding energy rings (progress 0..1)
+        self._data_pulses: list[list[float]] = []  # [angle, progress] center→edge
+        self._pulse_accum = 0
         self._wave = [0.0] * 48
         self._wave_targets = [0.0] * 48
         self._timer = QTimer(self)
@@ -206,12 +232,40 @@ class ArcReactor(QWidget):
         self._accent = QColor(color)
         self.update()
 
+    def set_intensity(self, value: float) -> None:
+        self._intensity = max(0.0, min(1.0, float(value)))
+
+    def pulse_puff(self) -> None:
+        """Kick a one-shot expand + energy ripple (call when a command lands)."""
+        self._puff = 1.0
+        self._ripples.append(0.0)
+        self.update()
+
     def _tick(self) -> None:
+        import random
+
         rate = _STATE_RATES.get(self._state, 1.0)
         self._phase += 0.06 * rate
+        self._elapsed += 0.033
         self._rotation += 0.4 * rate
         if self._rotation > 360:
             self._rotation -= 360
+
+        if self._puff > 0:
+            self._puff = max(0.0, self._puff - 0.045)
+        self._ripples = [r + 0.018 for r in self._ripples if r < 1.0]
+
+        self._pulse_accum += 1
+        if self._pulse_accum >= max(4, int(14 / rate)):
+            self._pulse_accum = 0
+            self._data_pulses.append([random.uniform(0, 2 * math.pi), 0.0])
+        nxt = []
+        for ang, prog in self._data_pulses:
+            prog += 0.03 * (0.6 + rate * 0.5)
+            if prog < 1.0:
+                nxt.append([ang, prog])
+        self._data_pulses = nxt
+
         self._update_wave()
         self.update()
 
@@ -312,47 +366,70 @@ class ArcReactor(QWidget):
             p.setPen(pen)
             p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
 
-        # Rotating segmented outer ring (12 dashes)
-        p.save()
-        p.translate(cx, cy)
-        p.rotate(self._rotation)
-        pen = QPen(QColor(color.red(), color.green(), color.blue(), 200))
-        pen.setWidth(2)
-        p.setPen(pen)
-        seg = 12
-        for i in range(seg):
-            start = (i / seg) * 360 * 16
-            span = (360 / seg / 2.4) * 16
-            r = r_ring
-            p.drawArc(QRectF(-r, -r, 2 * r, 2 * r), int(start), int(span))
-        p.restore()
+        # Three concentric data rings — inner (slow), middle (medium), outer (fast)
+        col = (color.red(), color.green(), color.blue())
+        for r_mul, segs, span_div, spd, width, alpha in (
+            (0.78, 8, 3.0, 0.5, 1, 130),    # inner  — slow, low-level system stats
+            (1.00, 12, 2.4, 1.0, 2, 190),   # middle — medium, data processing
+            (1.22, 16, 4.0, 1.8, 2, 230),   # outer  — fast, critical / alerts
+        ):
+            p.save()
+            p.translate(cx, cy)
+            p.rotate(self._rotation * spd)
+            pen = QPen(QColor(*col, alpha))
+            pen.setWidth(width)
+            p.setPen(pen)
+            r = r_ring * r_mul
+            for i in range(segs):
+                start = (i / segs) * 360 * 16
+                span = (360 / segs / span_div) * 16
+                p.drawArc(QRectF(-r, -r, 2 * r, 2 * r), int(start), int(span))
+            p.restore()
 
-        # Rotating counter ring (8 dashes, opposite direction)
-        p.save()
-        p.translate(cx, cy)
-        p.rotate(-self._rotation * 0.7)
-        pen = QPen(QColor(color.red(), color.green(), color.blue(), 140))
-        pen.setWidth(1)
-        p.setPen(pen)
-        seg = 8
-        for i in range(seg):
-            start = (i / seg) * 360 * 16
-            span = (360 / seg / 3.5) * 16
-            r = r_ring * 0.85
-            p.drawArc(QRectF(-r, -r, 2 * r, 2 * r), int(start), int(span))
-        p.restore()
+        # Data pulses travelling from the core out to the rings
+        r_pulse_max = r_ring * 1.22
+        for ang, prog in self._data_pulses:
+            rr = r_core + (r_pulse_max - r_core) * prog
+            px = cx + rr * math.cos(ang)
+            py = cy + rr * math.sin(ang)
+            a = int(230 * (1.0 - prog * 0.5))
+            tr = max(r_core, rr - 9)
+            tx = cx + tr * math.cos(ang)
+            ty = cy + tr * math.sin(ang)
+            trail = QPen(QColor(*col, max(0, a // 2)))
+            trail.setWidth(2)
+            trail.setCapStyle(Qt.RoundCap)
+            p.setPen(trail)
+            p.drawLine(QPointF(tx, ty), QPointF(px, py))
+            head = QPen(QColor(255, 255, 255, a))
+            head.setWidth(3)
+            head.setCapStyle(Qt.RoundCap)
+            p.setPen(head)
+            p.drawPoint(QPointF(px, py))
 
-        # Core glow — radial gradient
-        pulse = 1.0 + 0.06 * math.sin(self._phase * 2)
-        r_glow = r_core * pulse * 1.6
+        # Core glow — 1.5s breathing + puff expansion + intensity warmth
+        breath = math.sin(2 * math.pi * self._elapsed / 1.5)
+        pulse = 1.0 + 0.05 * breath + self._puff * 0.18
+        hot = _warm(color, self._intensity)  # accent → violet → yellow with intensity
+        r_glow = r_core * pulse * (1.6 + 0.35 * self._intensity)
         glow = QRadialGradient(QPointF(cx, cy), r_glow)
-        glow.setColorAt(0.0, QColor(255, 255, 255, 230))
-        glow.setColorAt(0.25, QColor(color.red(), color.green(), color.blue(), 200))
-        glow.setColorAt(0.6, QColor(color.red(), color.green(), color.blue(), 80))
-        glow.setColorAt(1.0, QColor(color.red(), color.green(), color.blue(), 0))
+        glow.setColorAt(0.0, QColor(255, 255, 255, 235))
+        glow.setColorAt(0.22, QColor(hot.red(), hot.green(), hot.blue(), 210))
+        glow.setColorAt(0.6, QColor(hot.red(), hot.green(), hot.blue(), 80))
+        glow.setColorAt(1.0, QColor(hot.red(), hot.green(), hot.blue(), 0))
         p.setPen(Qt.NoPen)
         p.setBrush(QBrush(glow))
         p.drawEllipse(QPointF(cx, cy), r_glow, r_glow)
+
+        # Energy ripples from a puff
+        for prog in self._ripples:
+            rr = r_core + (r_outer - r_core) * prog
+            a = int(170 * (1.0 - prog))
+            rp = QPen(QColor(color.red(), color.green(), color.blue(), a))
+            rp.setWidth(2)
+            p.setPen(rp)
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(QPointF(cx, cy), rr, rr)
 
         # Inner core ring
         r_inner_ring = r_core * pulse
@@ -536,7 +613,8 @@ class JobPrepView(QWidget):
 class TitleBar(QFrame):
     minimize_clicked = Signal()
     close_clicked = Signal()
-    view_changed = Signal(str)  # "main" | "jobprep"
+    view_changed = Signal(str)   # "main" | "jobprep"
+    mode_selected = Signal(str)  # "default" | "chill" | "work" | "creative"
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -566,6 +644,22 @@ class TitleBar(QFrame):
 
         layout.addStretch(1)
 
+        # Mode selector — switches theme / density / layout
+        self._mode_btns: dict[str, QPushButton] = {}
+        for key, theme in MODES.items():
+            btn = QPushButton(theme.label)
+            btn.setObjectName("modeBtn")
+            btn.setCheckable(True)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setStyleSheet(
+                f"QPushButton#modeBtn:checked {{ color: {theme.accent}; "
+                f"border: 1px solid {theme.accent}; }}"
+            )
+            btn.clicked.connect(lambda _c=False, k=key: self.mode_selected.emit(k))
+            layout.addWidget(btn)
+            self._mode_btns[key] = btn
+        self._mode_btns["default"].setChecked(True)
+
         self.clock = QLabel("--:--:--")
         self.clock.setObjectName("clock")
         layout.addWidget(self.clock)
@@ -594,6 +688,10 @@ class TitleBar(QFrame):
         for k, btn in self._nav.items():
             btn.setChecked(k == key)
         self.view_changed.emit(key)
+
+    def set_active_mode(self, key: str) -> None:
+        for k, btn in self._mode_btns.items():
+            btn.setChecked(k == key)
 
     # Drag the window
     def mousePressEvent(self, event):  # noqa: N802

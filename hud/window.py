@@ -111,6 +111,7 @@ class JarvisHUD(QMainWindow):
         self.title_bar = TitleBar()
         self.title_bar.close_clicked.connect(self.close)
         self.title_bar.minimize_clicked.connect(self.showMinimized)
+        self.title_bar.mode_selected.connect(self.apply_mode)
         outer.addWidget(self.title_bar)
 
         # ── Stacked views: MAIN (assistant) + JOB PREP (dashboard) ──────────
@@ -223,10 +224,19 @@ class JarvisHUD(QMainWindow):
     def _on_state(self, state: str) -> None:
         self.reactor.set_state(state)
         self.status.set_state(state)
+        self.reactor.set_intensity(
+            {
+                STATE_THINKING: 0.85,
+                STATE_SPEAKING: 0.55,
+                STATE_LISTENING: 0.30,
+                STATE_ERROR: 0.60,
+            }.get(state, 0.0)
+        )
 
     def _on_transcript(self, text: str) -> None:
         timestamp = datetime.now().strftime("%H:%M")
         self.transcript.append_line(f"[{timestamp}]  ▸ {text}", color=TEXT_BRIGHT)
+        self.reactor.pulse_puff()  # energy puff when a command lands
 
     def _on_tool(self, name: str, args: dict) -> None:
         self._tool_count += 1
@@ -235,6 +245,11 @@ class JarvisHUD(QMainWindow):
             arg_str = arg_str[:69] + "…"
         self.actions.append_line(f"⚙ {name}", color=ACCENT)
         self.actions.append_line(arg_str, color=TEXT_DIM, indent=2)
+        if name == "set_mode":
+            from core.tools import normalize_mode
+            canon = normalize_mode(args.get("mode", ""))
+            if canon:
+                self.apply_mode(canon)
 
     def _on_response(self, text: str) -> None:
         self.response.set_text(text, color=TEXT)
@@ -304,6 +319,7 @@ class JarvisHUD(QMainWindow):
         self._overlay.set_accent(accent)
         for panel in self._glow_panels:
             _glow(panel, accent)
+        self.title_bar.set_active_mode(name)
 
     # ── Trackers: TO-DO (main view) + DSA/PREP (job-prep view) ──────────────
 

@@ -72,6 +72,22 @@ TOOLS: list[dict] = [
         },
     },
     {
+        "name": "set_mode",
+        "description": (
+            "Switch the HUD mode (theme + layout). Modes: 'chill' (calm, white, ambient), "
+            "'work' (red, dense, focused), 'creative' (green, brainstorm), 'default' (cyan). "
+            "Use when the user asks to change mode or vibe — e.g. 'chill mode', 'let's focus', "
+            "'creative mode'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "description": "chill | work | creative | default"},
+            },
+            "required": ["mode"],
+        },
+    },
+    {
         "name": "read_file",
         "description": "Read a text file from disk. Returns content as a string.",
         "input_schema": {
@@ -722,6 +738,26 @@ def t_open_app(name: str) -> str:
         return f"Could not launch {name}: {e}"
 
 
+_MODE_ALIASES = {
+    "default": "default", "jarvis": "default", "normal": "default", "standard": "default", "cyan": "default",
+    "chill": "chill", "relax": "chill", "ambient": "chill", "calm": "chill", "idle": "chill",
+    "work": "work", "focus": "work", "focused": "work", "productivity": "work", "productive": "work",
+    "creative": "creative", "creativity": "creative", "brainstorm": "creative", "ideas": "creative", "idea": "creative",
+}
+
+
+def normalize_mode(name: str) -> str | None:
+    return _MODE_ALIASES.get((name or "").lower().strip())
+
+
+def t_set_mode(mode: str) -> str:
+    canon = normalize_mode(mode)
+    if canon is None:
+        return f"Unknown mode '{mode}'. Available: chill, work, creative, default."
+    label = {"default": "default", "chill": "Chill", "work": "Work", "creative": "Creative"}[canon]
+    return f"Switched to {label} mode."
+
+
 def t_applescript(script: str) -> str:
     if not IS_MAC:
         return "applescript is only available on macOS."
@@ -908,6 +944,7 @@ DISPATCH: dict[str, Any] = {
     "mouse_click": t_mouse_click,
     "open_app": t_open_app,
     "applescript": t_applescript,
+    "set_mode": t_set_mode,
     "memory_save": t_memory_save,
     "memory_search": t_memory_search,
     "memory_list_recent": t_memory_list_recent,
