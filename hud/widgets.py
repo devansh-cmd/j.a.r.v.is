@@ -85,11 +85,17 @@ class HudBackground(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self._accent = QColor(0, 212, 255)
+
+    def set_accent(self, color) -> None:
+        self._accent = QColor(color)
+        self.update()
 
     def paintEvent(self, event) -> None:  # noqa: N802
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
+        a = self._accent
 
         # Base radial wash
         base = QRadialGradient(w / 2, h / 2, max(w, h) * 0.8)
@@ -98,7 +104,7 @@ class HudBackground(QWidget):
         p.fillRect(self.rect(), QBrush(base))
 
         # Tech grid
-        pen = QPen(QColor(0, 212, 255, 16))
+        pen = QPen(QColor(a.red(), a.green(), a.blue(), 16))
         pen.setWidth(1)
         p.setPen(pen)
         step = 42
@@ -126,10 +132,14 @@ class HudOverlay(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._accent = QColor(0, 212, 255)
         self._scan = -0.05
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(33)
+
+    def set_accent(self, color) -> None:
+        self._accent = QColor(color)
 
     def _tick(self) -> None:
         self._scan += 0.0018
@@ -141,20 +151,21 @@ class HudOverlay(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
+        a = self._accent
 
         # Scan line
         y = self._scan * h
         if 0 <= y <= h:
             grad = QLinearGradient(0, y, w, y)
-            grad.setColorAt(0.0, QColor(0, 212, 255, 0))
-            grad.setColorAt(0.5, QColor(95, 239, 255, 90))
-            grad.setColorAt(1.0, QColor(0, 212, 255, 0))
+            grad.setColorAt(0.0, QColor(a.red(), a.green(), a.blue(), 0))
+            grad.setColorAt(0.5, QColor(a.red(), a.green(), a.blue(), 110))
+            grad.setColorAt(1.0, QColor(a.red(), a.green(), a.blue(), 0))
             pen = QPen(QBrush(grad), 2)
             p.setPen(pen)
             p.drawLine(0, int(y), w, int(y))
 
         # Corner brackets
-        pen = QPen(QColor(0, 212, 255, 190))
+        pen = QPen(QColor(a.red(), a.green(), a.blue(), 190))
         pen.setWidth(2)
         p.setPen(pen)
         seg, m = 22, 9
@@ -176,6 +187,7 @@ class ArcReactor(QWidget):
         self.setMinimumSize(380, 380)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._state = STATE_IDLE
+        self._accent = QColor(0, 212, 255)
         self._phase = 0.0
         self._rotation = 0.0
         self._wave = [0.0] * 48
@@ -188,6 +200,10 @@ class ArcReactor(QWidget):
         if state == self._state:
             return
         self._state = state
+        self.update()
+
+    def set_accent(self, color) -> None:
+        self._accent = QColor(color)
         self.update()
 
     def _tick(self) -> None:
@@ -232,7 +248,12 @@ class ArcReactor(QWidget):
         r_ring = side * 0.30
         r_core = side * 0.16
 
-        color = _STATE_COLORS.get(self._state, _STATE_COLORS[STATE_IDLE])
+        if self._state == STATE_THINKING:
+            color = QColor(255, 170, 60)   # amber — universal "busy"
+        elif self._state == STATE_ERROR:
+            color = QColor(255, 48, 112)   # red — universal "error"
+        else:
+            color = QColor(self._accent)   # idle / listening / speaking → mode accent
 
         # Outermost faint ring
         pen = QPen(QColor(color.red(), color.green(), color.blue(), 50))

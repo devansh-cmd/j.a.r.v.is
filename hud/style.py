@@ -1,30 +1,56 @@
-"""HUD theme — color palette, fonts, QSS stylesheet."""
+"""HUD theme — palette + a themeable QSS generator.
 
-# Core palette
+`build_stylesheet(accent, accent_bright)` regenerates the whole stylesheet around a
+given accent colour, so a mode switch can recolour the entire chrome. The module-level
+constants below are the cyan defaults used when no mode override is active.
+"""
+
+# Fixed palette (mode-independent)
 BG_DARKEST = "#01080d"
 BG_DARK = "#02141c"
 BG_PANEL = "rgba(8, 26, 36, 220)"
-BG_PANEL_HOVER = "rgba(14, 36, 50, 230)"
-
-BORDER = "rgba(0, 212, 255, 70)"
-BORDER_BRIGHT = "#00d4ff"
-BORDER_DIM = "rgba(0, 212, 255, 40)"
 
 TEXT_DIM = "#4a7886"
 TEXT = "#a8e8f0"
 TEXT_BRIGHT = "#ffffff"
 
-ACCENT = "#00d4ff"
-ACCENT_BRIGHT = "#5fefff"
+# Universal signal colours (used inside panels regardless of mode)
 ACCENT_AMBER = "#ffaa3c"
 ACCENT_GREEN = "#3effa3"
 ACCENT_RED = "#ff3070"
+
+# Default accent (cyan) — mode themes override these at runtime
+ACCENT = "#00d4ff"
+ACCENT_BRIGHT = "#5fefff"
+BORDER = "rgba(0, 212, 255, 70)"
+BORDER_BRIGHT = "#00d4ff"
+BORDER_DIM = "rgba(0, 212, 255, 40)"
 
 FONT_MAIN = "Consolas"
 FONT_DISPLAY = "Consolas"
 
 
-STYLESHEET = f"""
+def _hex_to_rgb(h: str) -> tuple[int, int, int]:
+    h = h.lstrip("#")
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
+def _rgba(hexcolor: str, alpha: int) -> str:
+    r, g, b = _hex_to_rgb(hexcolor)
+    return f"rgba({r}, {g}, {b}, {alpha})"
+
+
+def build_stylesheet(accent: str = ACCENT, accent_bright: str = ACCENT_BRIGHT) -> str:
+    """Generate the full QSS around an accent colour."""
+    border = _rgba(accent, 70)
+    border_dim = _rgba(accent, 40)
+    a18 = _rgba(accent, 18)
+    a16 = _rgba(accent, 16)
+    a14 = _rgba(accent, 14)
+    a22 = _rgba(accent, 22)
+    a28 = _rgba(accent, 28)
+    a30 = _rgba(accent, 30)
+    return f"""
 QWidget {{
     background-color: transparent;
     color: {TEXT};
@@ -38,19 +64,19 @@ QMainWindow, #rootBg {{
 
 #panel {{
     background-color: rgba(6, 22, 32, 160);
-    border: 1px solid {BORDER_DIM};
-    border-top: 2px solid {BORDER_BRIGHT};
+    border: 1px solid {border_dim};
+    border-top: 2px solid {accent_bright};
     border-radius: 4px;
 }}
 
 #panelHeader {{
-    color: {ACCENT};
+    color: {accent};
     font-size: 11px;
     font-weight: bold;
     letter-spacing: 3px;
     padding: 8px 14px;
-    border-bottom: 1px solid {BORDER_DIM};
-    background-color: rgba(0, 212, 255, 18);
+    border-bottom: 1px solid {border_dim};
+    background-color: {a18};
 }}
 
 #panelBody {{
@@ -64,7 +90,7 @@ QTextEdit, QPlainTextEdit, QListWidget {{
     color: {TEXT};
     font-family: {FONT_MAIN};
     font-size: 12px;
-    selection-background-color: {ACCENT};
+    selection-background-color: {accent};
     selection-color: {BG_DARKEST};
 }}
 
@@ -74,12 +100,12 @@ QScrollBar:vertical {{
     margin: 0;
 }}
 QScrollBar::handle:vertical {{
-    background: {BORDER};
+    background: {border};
     border-radius: 3px;
     min-height: 24px;
 }}
 QScrollBar::handle:vertical:hover {{
-    background: {ACCENT};
+    background: {accent};
 }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
     height: 0;
@@ -87,11 +113,11 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
 
 #titleBar {{
     background-color: {BG_DARK};
-    border-bottom: 1px solid {BORDER};
+    border-bottom: 1px solid {border};
 }}
 
 #title {{
-    color: {ACCENT};
+    color: {accent};
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 6px;
@@ -111,16 +137,16 @@ QPushButton#navBtn {{
 }}
 QPushButton#navBtn:hover {{
     color: {TEXT};
-    background-color: rgba(0, 212, 255, 16);
+    background-color: {a16};
 }}
 QPushButton#navBtn:checked {{
-    color: {ACCENT_BRIGHT};
-    border: 1px solid {BORDER};
-    background-color: rgba(0, 212, 255, 28);
+    color: {accent_bright};
+    border: 1px solid {border};
+    background-color: {a28};
 }}
 
 #viewBanner {{
-    color: {ACCENT};
+    color: {accent};
     font-size: 12px;
     font-weight: bold;
     letter-spacing: 5px;
@@ -143,8 +169,8 @@ QPushButton#winBtn {{
     min-height: 28px;
 }}
 QPushButton#winBtn:hover {{
-    color: {ACCENT};
-    background-color: rgba(0, 212, 255, 30);
+    color: {accent};
+    background-color: {a30};
 }}
 QPushButton#winBtnClose:hover {{
     color: {TEXT_BRIGHT};
@@ -153,11 +179,11 @@ QPushButton#winBtnClose:hover {{
 
 #statusBar {{
     background-color: {BG_DARK};
-    border-top: 1px solid {BORDER};
+    border-top: 1px solid {border};
 }}
 
 #statusLabel {{
-    color: {ACCENT};
+    color: {accent};
     font-size: 12px;
     letter-spacing: 4px;
     font-weight: bold;
@@ -166,26 +192,26 @@ QPushButton#winBtnClose:hover {{
 
 #inputBar {{
     background-color: {BG_PANEL};
-    border-top: 1px solid {BORDER_DIM};
+    border-top: 1px solid {border_dim};
 }}
 
 QLineEdit#textInput {{
     background-color: rgba(0, 0, 0, 100);
-    border: 1px solid {BORDER_DIM};
+    border: 1px solid {border_dim};
     border-radius: 4px;
     padding: 8px 14px;
     color: {TEXT_BRIGHT};
     font-family: {FONT_MAIN};
     font-size: 13px;
-    selection-background-color: {ACCENT};
+    selection-background-color: {accent};
 }}
 QLineEdit#textInput:focus {{
-    border: 1px solid {ACCENT};
+    border: 1px solid {accent};
 }}
 
 #tabHeader {{
-    background-color: rgba(0, 212, 255, 16);
-    border-bottom: 1px solid {BORDER_DIM};
+    background-color: {a16};
+    border-bottom: 1px solid {border_dim};
 }}
 
 QPushButton#tabBtn {{
@@ -200,11 +226,15 @@ QPushButton#tabBtn {{
 }}
 QPushButton#tabBtn:hover {{
     color: {TEXT};
-    background-color: rgba(0, 212, 255, 14);
+    background-color: {a14};
 }}
 QPushButton#tabBtn:checked {{
-    color: {ACCENT};
-    border-bottom: 2px solid {ACCENT};
-    background-color: rgba(0, 212, 255, 22);
+    color: {accent};
+    border-bottom: 2px solid {accent};
+    background-color: {a22};
 }}
 """
+
+
+# Default cyan stylesheet (back-compat for code that imports STYLESHEET)
+STYLESHEET = build_stylesheet()

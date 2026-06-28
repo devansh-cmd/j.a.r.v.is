@@ -32,7 +32,9 @@ from hud.style import (
     TEXT,
     TEXT_DIM,
     TEXT_BRIGHT,
+    build_stylesheet,
 )
+from hud.theme import MODES, ThemeState
 from hud.widgets import (
     STATE_IDLE,
     STATE_LISTENING,
@@ -54,11 +56,13 @@ def _esc(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _glow(widget, radius: int = 20, alpha: int = 150) -> None:
-    """Apply a soft cyan outer glow to a widget."""
+def _glow(widget, color=None, radius: int = 20, alpha: int = 150) -> None:
+    """Apply a soft accent-coloured outer glow to a widget."""
+    c = QColor(color) if color is not None else QColor(0, 212, 255)
+    c.setAlpha(alpha)
     eff = QGraphicsDropShadowEffect(widget)
     eff.setBlurRadius(radius)
-    eff.setColor(QColor(0, 212, 255, alpha))
+    eff.setColor(c)
     eff.setOffset(0, 0)
     widget.setGraphicsEffect(eff)
 
@@ -92,6 +96,7 @@ class JarvisHUD(QMainWindow):
 
         self._started_at = time.time()
         self._tool_count = 0
+        self.theme = ThemeState()
         prep.ensure_seeded()
 
         root = HudBackground()
@@ -151,12 +156,13 @@ class JarvisHUD(QMainWindow):
         self.jobprep = JobPrepView()
         self.views.addWidget(self.jobprep)
 
-        # Cyan glow halo on every panel
-        for panel in (
+        # Accent glow halo on every panel
+        self._glow_panels = (
             self.transcript, self.actions, self.response, self.systems,
             self.todo, self.jobprep.dsa, self.jobprep.prep,
-        ):
-            _glow(panel)
+        )
+        for panel in self._glow_panels:
+            _glow(panel, self.theme.accent())
 
         # Text input fallback (always available)
         input_bar = QWidget()
@@ -195,6 +201,11 @@ class JarvisHUD(QMainWindow):
         QShortcut(QKeySequence("Ctrl+1"), self, activated=lambda: self.title_bar.set_view("main"))
         QShortcut(QKeySequence("Ctrl+2"), self, activated=lambda: self.title_bar.set_view("jobprep"))
         QShortcut(QKeySequence("Ctrl+J"), self, activated=lambda: self.title_bar.set_view("jobprep"))
+        # Mode switching (Phase 1 theming — recolours the whole HUD)
+        QShortcut(QKeySequence("Ctrl+Shift+1"), self, activated=lambda: self.apply_mode("default"))
+        QShortcut(QKeySequence("Ctrl+Shift+2"), self, activated=lambda: self.apply_mode("chill"))
+        QShortcut(QKeySequence("Ctrl+Shift+3"), self, activated=lambda: self.apply_mode("work"))
+        QShortcut(QKeySequence("Ctrl+Shift+4"), self, activated=lambda: self.apply_mode("creative"))
 
         # Boot message
         self.response.set_text(
@@ -278,6 +289,21 @@ class JarvisHUD(QMainWindow):
 
     def _switch_view(self, key: str) -> None:
         self.views.setCurrentIndex(1 if key == "jobprep" else 0)
+
+    # ── Mode / theme switching ──────────────────────────────────────────────
+
+    def apply_mode(self, name: str) -> None:
+        """Recolour the entire HUD around the given mode's accent."""
+        if not self.theme.set_mode(name):
+            return
+        t = self.theme.theme
+        accent = QColor(t.accent)
+        self.setStyleSheet(build_stylesheet(t.accent, t.accent_bright))
+        self.reactor.set_accent(accent)
+        self._root.set_accent(accent)
+        self._overlay.set_accent(accent)
+        for panel in self._glow_panels:
+            _glow(panel, accent)
 
     # ── Trackers: TO-DO (main view) + DSA/PREP (job-prep view) ──────────────
 
