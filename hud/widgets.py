@@ -105,7 +105,7 @@ class HudBackground(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._accent = QColor(0, 212, 255)
+        self._accent = QColor(21, 232, 255)
 
     def set_accent(self, color) -> None:
         self._accent = QColor(color)
@@ -117,14 +117,24 @@ class HudBackground(QWidget):
         w, h = self.width(), self.height()
         a = self._accent
 
-        # Base radial wash
-        base = QRadialGradient(w / 2, h / 2, max(w, h) * 0.8)
-        base.setColorAt(0.0, QColor(3, 22, 31))
-        base.setColorAt(1.0, QColor(1, 7, 12))
+        # Deep noir base wash
+        base = QRadialGradient(w / 2, h * 0.42, max(w, h) * 0.85)
+        base.setColorAt(0.0, QColor(11, 15, 32))
+        base.setColorAt(1.0, QColor(3, 4, 12))
         p.fillRect(self.rect(), QBrush(base))
 
+        # Neon city glows — accent (cyan) from the top, magenta from the bottom
+        cyan = QRadialGradient(w * 0.5, h * 0.16, max(w, h) * 0.6)
+        cyan.setColorAt(0.0, QColor(a.red(), a.green(), a.blue(), 34))
+        cyan.setColorAt(1.0, QColor(a.red(), a.green(), a.blue(), 0))
+        p.fillRect(self.rect(), QBrush(cyan))
+        mag = QRadialGradient(w * 0.5, h * 1.02, max(w, h) * 0.62)
+        mag.setColorAt(0.0, QColor(255, 45, 149, 42))
+        mag.setColorAt(1.0, QColor(255, 45, 149, 0))
+        p.fillRect(self.rect(), QBrush(mag))
+
         # Tech grid
-        pen = QPen(QColor(a.red(), a.green(), a.blue(), 16))
+        pen = QPen(QColor(a.red(), a.green(), a.blue(), 14))
         pen.setWidth(1)
         p.setPen(pen)
         step = 42
@@ -133,11 +143,11 @@ class HudBackground(QWidget):
         for y in range(0, h, step):
             p.drawLine(0, y, w, y)
 
-        # Vignette to fade the grid toward the edges
+        # Vignette to deepen the noir toward the edges
         vig = QRadialGradient(w / 2, h / 2, max(w, h) * 0.62)
-        vig.setColorAt(0.0, QColor(1, 7, 12, 0))
-        vig.setColorAt(0.65, QColor(1, 7, 12, 0))
-        vig.setColorAt(1.0, QColor(1, 7, 12, 210))
+        vig.setColorAt(0.0, QColor(3, 4, 12, 0))
+        vig.setColorAt(0.62, QColor(3, 4, 12, 0))
+        vig.setColorAt(1.0, QColor(3, 4, 12, 215))
         p.fillRect(self.rect(), QBrush(vig))
         p.end()
 
@@ -152,7 +162,7 @@ class HudOverlay(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self._accent = QColor(0, 212, 255)
+        self._accent = QColor(21, 232, 255)
         self._scan = -0.05
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -184,8 +194,8 @@ class HudOverlay(QWidget):
             p.setPen(pen)
             p.drawLine(0, int(y), w, int(y))
 
-        # Corner brackets
-        pen = QPen(QColor(a.red(), a.green(), a.blue(), 190))
+        # Corner brackets — hot magenta for the cyberpunk dual-tone
+        pen = QPen(QColor(255, 45, 149, 210))
         pen.setWidth(2)
         p.setPen(pen)
         seg, m = 22, 9
@@ -207,7 +217,7 @@ class ArcReactor(QWidget):
         self.setMinimumSize(380, 380)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._state = STATE_IDLE
-        self._accent = QColor(0, 212, 255)
+        self._accent = QColor(21, 232, 255)
         self._phase = 0.0
         self._elapsed = 0.0          # seconds, for the 1.5s breathing cadence
         self._rotation = 0.0

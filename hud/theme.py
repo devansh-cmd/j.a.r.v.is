@@ -24,11 +24,12 @@ class Theme:
 
 # Mode registry. `default` is the standard cyan JARVIS look; the three named
 # modes match the UI spec (Chill / Work / Creative).
+# Cyberpunk-noir neon accents — electric cyan, violet, hot magenta-red, neon green.
 MODES: dict[str, Theme] = {
-    "default":  Theme("default",  "JARVIS",   "#00d4ff", "#5fefff", "dense"),
-    "chill":    Theme("chill",    "CHILL",    "#cfe8f5", "#ffffff", "minimal"),
-    "work":     Theme("work",     "WORK",     "#ff3b3b", "#ff8a8a", "dense"),
-    "creative": Theme("creative", "CREATIVE", "#3effa3", "#9bffd0", "open"),
+    "default":  Theme("default",  "JARVIS",   "#15e8ff", "#7df9ff", "dense"),
+    "chill":    Theme("chill",    "CHILL",    "#8b7bff", "#c4bcff", "minimal"),
+    "work":     Theme("work",     "WORK",     "#ff2d6b", "#ff7aa6", "dense"),
+    "creative": Theme("creative", "CREATIVE", "#2bf0b0", "#9bffd9", "open"),
 }
 
 DEFAULT_MODE = "default"

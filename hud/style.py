@@ -5,26 +5,29 @@ given accent colour, so a mode switch can recolour the entire chrome. The module
 constants below are the cyan defaults used when no mode override is active.
 """
 
-# Fixed palette (mode-independent)
-BG_DARKEST = "#01080d"
-BG_DARK = "#02141c"
-BG_PANEL = "rgba(8, 26, 36, 220)"
+# Fixed palette (mode-independent) — cyberpunk noir
+BG_DARKEST = "#04060e"   # deep noir blue-black
+BG_DARK = "#080b18"
+BG_PANEL = "rgba(10, 14, 28, 205)"
 
-TEXT_DIM = "#4a7886"
-TEXT = "#a8e8f0"
+TEXT_DIM = "#5a7a92"
+TEXT = "#bfe9f5"
 TEXT_BRIGHT = "#ffffff"
 
 # Universal signal colours (used inside panels regardless of mode)
-ACCENT_AMBER = "#ffaa3c"
-ACCENT_GREEN = "#3effa3"
-ACCENT_RED = "#ff3070"
+ACCENT_AMBER = "#ffb13c"
+ACCENT_GREEN = "#2bf0b0"
+ACCENT_RED = "#ff2d6b"
 
-# Default accent (cyan) — mode themes override these at runtime
-ACCENT = "#00d4ff"
-ACCENT_BRIGHT = "#5fefff"
-BORDER = "rgba(0, 212, 255, 70)"
-BORDER_BRIGHT = "#00d4ff"
-BORDER_DIM = "rgba(0, 212, 255, 40)"
+# Cyberpunk dual-tone — electric cyan primary, hot magenta secondary
+NEON_MAGENTA = "#ff2d95"
+
+# Default accent (electric cyan) — mode themes override these at runtime
+ACCENT = "#15e8ff"
+ACCENT_BRIGHT = "#7df9ff"
+BORDER = "rgba(21, 232, 255, 70)"
+BORDER_BRIGHT = "#15e8ff"
+BORDER_DIM = "rgba(21, 232, 255, 40)"
 
 FONT_MAIN = "Consolas"
 FONT_DISPLAY = "Consolas"
@@ -63,7 +66,7 @@ QMainWindow, #rootBg {{
 }}
 
 #panel {{
-    background-color: rgba(6, 22, 32, 160);
+    background-color: rgba(9, 13, 26, 175);
     border: 1px solid {border_dim};
     border-top: 2px solid {accent_bright};
     border-radius: 4px;
