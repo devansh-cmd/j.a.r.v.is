@@ -18,11 +18,30 @@ Living checklist. Mirrors the in-session task tracker. Check things off as we go
 - [x] MAIN / JOB PREP view switcher — title-bar nav; JOB PREP = full DSA +
       prep dashboard (`JobPrepView`); MAIN keeps TO-DO + glanceable summary
 
-## 🔵 In progress / next
-- [ ] **Port mockup aesthetic into Qt HUD** — translucent panels, glow, richer reactor
-      (60 ticks, 8 notches, 4 rings), scan line, corner brackets, status pills,
-      stat bars, audio waveform panel
-- [ ] **Wire diary into brain loop** — record every turn + tool call + response
+- [x] Diary wired as perpetual memory — journals every turn AND feeds recent
+      history back into context so Jarvis recognises the user across sessions
+      (`core/diary.py` + `core/brain.py`)
+- [x] `.gitignore` + secret-scan audit + pre-commit secret guard + SECURITY.md
+- [x] Cross-platform (macOS + Windows) — OS-aware shell/persona, `applescript`
+      tool for Mac control, guarded autonomy, README with Mac setup + permissions
+- [x] Proper README (features, both views, macOS/Windows setup, architecture)
+
+- [x] HUD visual glow-up — grid+vignette background, scan line, corner brackets,
+      translucent glowing panels, richer reactor (60-tick ring + crosshairs)
+
+- [x] Theming spine (UI spec phase 1) — ThemeState + build_stylesheet(accent);
+      apply_mode recolours the whole HUD; Ctrl+Shift+1-4 → default/chill/work/creative
+
+## 🔵 In progress / next — J.A.R.V.I.S. modes system (design/UI_SPEC.md)
+- [x] Phase 1 — theming spine
+- [x] Phase 2 — mode selector UI + `set_mode` voice tool (switch via keyboard/click/voice)
+- [x] Phase 3 — orb upgrade (1.5s breathing, puff+ripple, intensity hue-shift, 3 data rings)
+- [ ] Phase 4 — Chill layout (clock, now-playing, ambient bg)
+- [ ] Phase 5 — Creative layout (idea canvas / spawnable cards)
+- [ ] Phase 6 — Work data (CS/world/India news feeds)
+- [ ] Phase 7 — sound bed + ElevenLabs British voice
+- [ ] Phase 8 — data-viz (real mic waveform, gauges, weather radar)
+- [ ] (optional) status pills (BRAIN/VOICE/NET)
 
 ## 📋 Backlog
 - [ ] README + `.gitignore`
