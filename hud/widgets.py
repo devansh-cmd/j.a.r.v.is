@@ -143,6 +143,13 @@ class HudBackground(QWidget):
         for y in range(0, h, step):
             p.drawLine(0, y, w, y)
 
+        # CRT scanlines — faint dark horizontals for the retro-future screen feel
+        sl = QPen(QColor(0, 0, 0, 38))
+        sl.setWidth(1)
+        p.setPen(sl)
+        for y in range(0, h, 3):
+            p.drawLine(0, y, w, y)
+
         # Vignette to deepen the noir toward the edges
         vig = QRadialGradient(w / 2, h / 2, max(w, h) * 0.62)
         vig.setColorAt(0.0, QColor(3, 4, 12, 0))
