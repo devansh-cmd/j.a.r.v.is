@@ -49,6 +49,7 @@ from hud.widgets import (
     StatusBar,
     TitleBar,
 )
+from hud.creative import CreativeView
 from hud.worker import JarvisWorker
 
 
@@ -151,11 +152,16 @@ class JarvisHUD(QMainWindow):
         grid.setRowStretch(0, 4)
         grid.setRowStretch(1, 2)
         grid.setRowStretch(2, 2)
+        self._main_view = main_view
         self.views.addWidget(main_view)
 
         # JOB PREP view — dedicated DSA + interview-prep dashboard
         self.jobprep = JobPrepView()
         self.views.addWidget(self.jobprep)
+
+        # CREATIVE view — brainstorm canvas (shown in creative mode)
+        self.creative_view = CreativeView()
+        self.views.addWidget(self.creative_view)
 
         # Accent glow halo on every panel
         self._glow_panels = (
@@ -320,6 +326,13 @@ class JarvisHUD(QMainWindow):
         for panel in self._glow_panels:
             _glow(panel, accent)
         self.title_bar.set_active_mode(name)
+
+        # Mode-specific layout: Creative gets its own canvas; others use the dense view
+        if name == "creative":
+            self.views.setCurrentWidget(self.creative_view)
+            self.creative_view.reactor.set_accent(accent)
+        else:
+            self.views.setCurrentWidget(self._main_view)
 
     # ── Trackers: TO-DO (main view) + DSA/PREP (job-prep view) ──────────────
 
