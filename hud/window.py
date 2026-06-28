@@ -284,10 +284,16 @@ class JarvisHUD(QMainWindow):
 
         ds = dsa.stats()
         ps = prep.stats()
+        brain = getattr(self.worker, "brain", None)
+        route = brain.last_route if (brain and brain.last_route[1]) else None
+        model_label = (
+            route[1].replace("claude-", "").replace("gemini-", "") if route else "routing"
+        )
         rows = [
             ("CPU", f"{cpu:5.1f} %"),
             ("RAM", f"{mem_used_gb:.1f} / {mem_total_gb:.0f} GB"),
-            ("MODEL", config.MODEL.replace("claude-", "")),
+            ("MODEL", model_label),
+            ("TIER", route[2] if route else "—"),
             ("MEMORIES", str(memory.count())),
             ("TO-DO", f"{task_store.count_pending()} pending"),
             ("DSA", f"{ds['easy']['solved']}E {ds['medium']['solved']}M {ds['hard']['solved']}H"),

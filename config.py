@@ -18,6 +18,36 @@ MODEL = "claude-opus-4-8"
 MAX_TOKENS = 4096
 MAX_TOOL_ITERATIONS = 25
 
+# ── Multi-model routing ──────────────────────────────────────────────────────
+# Route each turn to a model sized to the task. Flip ROUTING_ENABLED off to use
+# a single model (FALLBACK). Every provider reads its key from an env var; a
+# provider with no key is skipped and the router falls back gracefully.
+ROUTING_ENABLED = True
+
+LLM_PROVIDERS = {
+    "anthropic":  {"kind": "anthropic", "key_env": "ANTHROPIC_API_KEY"},
+    "gemini":     {"kind": "openai", "key_env": "GEMINI_API_KEY",
+                   "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"},
+    "groq":       {"kind": "openai", "key_env": "GROQ_API_KEY",
+                   "base_url": "https://api.groq.com/openai/v1"},
+    "openrouter": {"kind": "openai", "key_env": "OPENROUTER_API_KEY",
+                   "base_url": "https://openrouter.ai/api/v1"},
+    "ollama":     {"kind": "openai", "key_env": None,
+                   "base_url": "http://localhost:11434/v1"},
+}
+
+# tier -> (provider, model). Hybrid default: free Gemini for the routine 80%,
+# Claude Sonnet only for genuinely hard reasoning.
+ROUTING = {
+    "reflex":    ("gemini", "gemini-2.0-flash-lite"),  # commands, tool fires
+    "workhorse": ("gemini", "gemini-2.5-flash"),       # chat, web, trackers
+    "deep":      ("anthropic", "claude-sonnet-4-6"),   # code, DSA, planning
+    "vision":    ("gemini", "gemini-2.5-flash"),       # screenshots
+}
+
+# Used when routing is off, or no routed/keyed provider is available.
+FALLBACK = ("anthropic", MODEL)
+
 TTS_VOICE = "en-US-GuyNeural"
 TTS_RATE = "+10%"
 

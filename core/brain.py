@@ -1,32 +1,31 @@
-"""Claude API agentic loop — wires tools.py to anthropic.Anthropic()."""
+"""Agentic loop — routes each turn to a model backend (Claude, Gemini, local…).
+
+The brain no longer talks to one SDK directly. It keeps a provider-neutral
+history (core.llm.Turn) and, each turn, asks core.router which backend+model
+fits the task, then runs the tool-use loop against it. Every turn is journaled
+to the diary for perpetual memory.
+"""
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime
 
-from anthropic import Anthropic
 from colorama import Fore, Style
 
-from config import JARVIS_PERSONA, MAX_TOKENS, MAX_TOOL_ITERATIONS, MODEL
-from core import diary, memory, tools
+from config import JARVIS_PERSONA, MAX_TOKENS, MAX_TOOL_ITERATIONS
+from core import diary, llm, memory, router, tools
 
 
 class Brain:
     def __init__(self) -> None:
-        api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "ANTHROPIC_API_KEY not set. Copy .env.example to .env and fill it in."
-            )
-        self.client = Anthropic(api_key=api_key)
-        self.messages: list[dict] = []
-        # Boundary between prior sessions (recalled from the diary) and this
-        # live session (held in self.messages). Diary timestamps are local naive
-        # ISO, so this string compares correctly against them.
+        self.history: list[llm.Turn] = []
+        # Boundary between prior sessions (recalled from the diary) and this live
+        # session. Diary timestamps are local naive ISO, so this string compares
+        # correctly against them.
         self._session_start = datetime.now().isoformat(timespec="seconds")
+        self.last_route: tuple[str, str, str] = ("", "", "")  # (provider, model, tier)
 
-    def _system_blocks(self) -> list[dict]:
+    def _system_text(self) -> str:
         recent = memory.list_recent(limit=10)
         memory_summary = (
             "\n".join(f"- ({m['category']}) {m['content']}" for m in recent) or "(none saved yet)"
@@ -43,76 +42,55 @@ class Brain:
             f"them for the first time if there's history here.\n\n"
             f"{digest}"
         )
-        return [
-            {
-                "type": "text",
-                "text": JARVIS_PERSONA,
-                "cache_control": {"type": "ephemeral"},
-            },
-            {"type": "text", "text": context},
-        ]
+        return f"{JARVIS_PERSONA}\n\n{context}"
 
-    def respond(self, user_text: str, on_tool: callable | None = None) -> str:
-        """Run one user turn through the agentic loop. Returns final assistant text.
-
-        Every turn is journaled to the diary: the user input, each tool call with
-        its result, and the final reply — so it becomes part of Jarvis's perpetual
-        memory for future sessions.
-        """
-        self.messages.append({"role": "user", "content": user_text})
+    def respond(self, user_text: str, on_tool=None) -> str:
+        """Run one user turn through the routed agentic loop. Returns final text."""
+        self.history.append(llm.Turn(role="user", text=user_text))
         diary.start_turn(user_text)
+
+        backend, model, provider, tier = router.resolve(user_text)
+        self.last_route = (provider, model, tier)
+        print(f"{Fore.LIGHTBLACK_EX}  [route: {tier} → {provider}/{model}]{Style.RESET_ALL}")
+        system = self._system_text()
 
         final = "(no response)"
         for _ in range(MAX_TOOL_ITERATIONS):
-            response = self.client.messages.create(
-                model=MODEL,
-                max_tokens=MAX_TOKENS,
-                system=self._system_blocks(),
-                tools=tools.TOOLS,
-                messages=self.messages,
-            )
-            self.messages.append({"role": "assistant", "content": response.content})
+            try:
+                resp = backend.complete(system, self.history, tools.TOOLS, model, MAX_TOKENS)
+            except Exception as e:  # network / auth / provider error — surface, don't crash
+                final = f"(model error on {provider}/{model}: {e})"
+                break
 
-            if response.stop_reason == "tool_use":
-                tool_results = []
-                for block in response.content:
-                    if block.type != "tool_use":
-                        continue
+            self.history.append(
+                llm.Turn(role="assistant", text=resp.text, tool_calls=resp.tool_calls)
+            )
+
+            if resp.stop_reason == "tool_use" and resp.tool_calls:
+                for call in resp.tool_calls:
                     if on_tool:
-                        on_tool(block.name, block.input)
-                    print(
-                        f"{Fore.CYAN}  ↳ {block.name}({_short_args(block.input)}){Style.RESET_ALL}"
+                        on_tool(call.name, call.input)
+                    print(f"{Fore.CYAN}  ↳ {call.name}({_short_args(call.input)}){Style.RESET_ALL}")
+                    result, is_error = tools.run_tool(call.name, call.input)
+                    diary.record_action(call.name, call.input, result, is_error)
+                    self.history.append(
+                        llm.Turn(role="tool", tool_call_id=call.id, text=result, is_error=is_error)
                     )
-                    result, is_error = tools.run_tool(block.name, block.input)
-                    diary.record_action(block.name, dict(block.input), result, is_error)
-                    tool_results.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": result,
-                            "is_error": is_error,
-                        }
-                    )
-                self.messages.append({"role": "user", "content": tool_results})
                 continue
 
-            # Any non-tool stop reason ends the turn.
-            final = self._extract_text(response.content)
+            final = resp.text
             if not final:
-                if response.stop_reason == "max_tokens":
-                    final = "(response cut off — hit max tokens)"
-                elif response.stop_reason != "end_turn":
-                    final = f"(stopped: {response.stop_reason})"
+                final = (
+                    "(response cut off — hit max tokens)"
+                    if resp.stop_reason == "max_tokens"
+                    else "(no reply)"
+                )
             break
         else:
             final = "(too many tool iterations)"
 
         diary.end_turn(final)
         return final
-
-    @staticmethod
-    def _extract_text(blocks) -> str:
-        return "\n".join(b.text for b in blocks if getattr(b, "type", None) == "text").strip()
 
 
 def _short_args(args: dict, max_len: int = 80) -> str:
