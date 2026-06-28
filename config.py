@@ -39,7 +39,7 @@ LLM_PROVIDERS = {
 # tier -> (provider, model). Hybrid default: free Gemini for the routine 80%,
 # Claude Sonnet only for genuinely hard reasoning.
 ROUTING = {
-    "reflex":    ("gemini", "gemini-2.0-flash-lite"),  # commands, tool fires
+    "reflex":    ("gemini", "gemini-2.5-flash"),       # commands, tool fires
     "workhorse": ("gemini", "gemini-2.5-flash"),       # chat, web, trackers
     "deep":      ("anthropic", "claude-sonnet-4-6"),   # code, DSA, planning
     "vision":    ("gemini", "gemini-2.5-flash"),       # screenshots

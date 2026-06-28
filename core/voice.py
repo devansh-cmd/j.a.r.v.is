@@ -37,13 +37,17 @@ class Voice:
         pygame.mixer.init()
         self._lock = threading.Lock()
 
-    def listen(self) -> str | None:
-        """Block until the user speaks a phrase. Returns transcribed text or None on failure."""
+    def listen(self, timeout: float | None = None) -> str | None:
+        """Listen for a phrase. Returns transcribed text, or None on timeout/failure.
+
+        `timeout` caps how long to wait for speech to *start* — pass a few seconds
+        so a background listener can poll and re-check its stop flag.
+        """
         try:
             with self.mic as source:
                 audio = self.recognizer.listen(
                     source,
-                    timeout=None,
+                    timeout=timeout,
                     phrase_time_limit=LISTEN_PHRASE_TIME_LIMIT,
                 )
         except sr.WaitTimeoutError:

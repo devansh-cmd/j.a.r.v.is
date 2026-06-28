@@ -51,7 +51,7 @@ class Brain:
 
         backend, model, provider, tier = router.resolve(user_text)
         self.last_route = (provider, model, tier)
-        print(f"{Fore.LIGHTBLACK_EX}  [route: {tier} → {provider}/{model}]{Style.RESET_ALL}")
+        print(f"{Fore.LIGHTBLACK_EX}  [route: {tier} -> {provider}/{model}]{Style.RESET_ALL}")
         system = self._system_text()
 
         final = "(no response)"
@@ -70,7 +70,7 @@ class Brain:
                 for call in resp.tool_calls:
                     if on_tool:
                         on_tool(call.name, call.input)
-                    print(f"{Fore.CYAN}  ↳ {call.name}({_short_args(call.input)}){Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}  -> {call.name}({_short_args(call.input)}){Style.RESET_ALL}")
                     result, is_error = tools.run_tool(call.name, call.input)
                     diary.record_action(call.name, call.input, result, is_error)
                     self.history.append(
